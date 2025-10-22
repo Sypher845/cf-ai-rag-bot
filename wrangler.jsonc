@@ -9,6 +9,25 @@
 	"compatibility_date": "2025-10-22",
 	"observability": {
 		"enabled": true
+	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "CHAT_SESSION",
+				"class_name": "ChatSession"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_classes": [
+				"ChatSession"
+			]
+		}
+	],
+	"ai": {
+		"binding": "AI"
 	}
 	/**
 	 * Smart Placement

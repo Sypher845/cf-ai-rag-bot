@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { ChatSession } from './chat-session';
 
 /**
  * Cloudflare AI RAG Bot API
@@ -26,12 +27,58 @@ app.post('/api/chat', async (c) => {
 			return c.json({ error: 'Message field is required and must be a string' }, 400);
 		}
 
-		// For now, echo the message back
-		const response = `You said: ${body.message}`;
+		// Get the CHAT_SESSION and AI bindings
+		const { CHAT_SESSION, AI } = c.env;
 		
-		return c.json({ response });
+		// Get a hardcoded ID for now
+		const id = CHAT_SESSION.idFromName("default-session");
+		
+		// Get the object stub
+		const stub = CHAT_SESSION.get(id);
+		
+		// Create the new message object
+		const userMessage = { role: "user", content: body.message };
+		
+		// Fetch the stub, sending the userMessage object
+		const userResponse = await stub.fetch('http://localhost/', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(userMessage)
+		});
+		
+		// Get the full history from the stub's response (including the new user message)
+		const messageHistory = await userResponse.json();
+		
+		// Define a system prompt
+		const systemPrompt = { role: "system", content: "You are a helpful and friendly assistant." };
+		
+		// Create the message array to send to the AI (system prompt + message history)
+		const aiMessages = [systemPrompt, ...messageHistory.messages];
+		
+		// Call the AI
+		const aiResponse = await AI.run('@cf/meta/llama-3.1-8b-instruct', {
+			messages: aiMessages
+		});
+		
+		// Create the AI's message object
+		const aiMessage = { role: "assistant", content: aiResponse.response };
+		
+		// Save the AI's response to the Durable Object
+		const aiSaveResponse = await stub.fetch('http://localhost/', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(aiMessage)
+		});
+		
+		// Get the final complete history (including the AI's response)
+		const finalHistory = await aiSaveResponse.json();
+		
+		// Return the final response to the user
+		return c.json(finalHistory);
+		
 	} catch (error) {
-		return c.json({ error: 'Invalid JSON body' }, 400);
+		console.error('Chat endpoint error:', error);
+		return c.json({ error: 'An error occurred processing your request' }, 500);
 	}
 });
 
@@ -52,3 +99,5 @@ app.get('/', (c) => {
 });
 
 export default app;
+
+export { ChatSession };
