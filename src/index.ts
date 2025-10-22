@@ -1,18 +1,54 @@
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+
 /**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `npm run deploy` to publish your worker
- *
- * Bind resources to your worker in `wrangler.jsonc`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/workers/
+ * Cloudflare AI RAG Bot API
+ * Built with Hono framework for Cloudflare Workers
  */
 
-export default {
-	async fetch(request, env, ctx): Promise<Response> {
-		return new Response('Hello World!');
-	},
-} satisfies ExportedHandler<Env>;
+const app = new Hono<{ Bindings: Env }>();
+
+// Enable CORS for frontend integration
+app.use('*', cors());
+
+/**
+ * Chat endpoint for RAG bot interactions
+ * POST /api/chat
+ * Body: { message: string }
+ * Response: { response: string }
+ */
+app.post('/api/chat', async (c) => {
+	try {
+		const body = await c.req.json();
+		
+		// Validate request body
+		if (!body.message || typeof body.message !== 'string') {
+			return c.json({ error: 'Message field is required and must be a string' }, 400);
+		}
+
+		// For now, echo the message back
+		const response = `You said: ${body.message}`;
+		
+		return c.json({ response });
+	} catch (error) {
+		return c.json({ error: 'Invalid JSON body' }, 400);
+	}
+});
+
+// Health check endpoint
+app.get('/health', (c) => {
+	return c.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Default route
+app.get('/', (c) => {
+	return c.json({ 
+		message: 'Cloudflare AI RAG Bot API',
+		endpoints: {
+			chat: 'POST /api/chat',
+			health: 'GET /health'
+		}
+	});
+});
+
+export default app;
